@@ -141,7 +141,7 @@ module.exports = function (gulpWrapper, ctx) {
     */ 
     gulp.task('__npmInstall',  function(callback) {
 		const npm = ctx.__config && ctx.__config.__npm ? ctx.__config.__npm : "npm";
-		var command = `${npm} ${pluginYargs.ci ? 'ci' : 'install'} --scripts-prepend-node-path`;
+		var command = `${npm} ${pluginYargs.ci ? 'ci' : 'install'} --scripts-prepend-node-path=true`;
 
 		if (!ctx.__verbose) {
 			command = command + " --silent";
@@ -171,7 +171,7 @@ module.exports = function (gulpWrapper, ctx) {
      */ 
     gulp.task('__dedupeLibs',  function(callback) {	
 		try {								
- 			pluginExecute(`${ctx.__config && ctx.__config.__npm ? ctx.__config.__npm : "npm"} dedupe --scripts-prepend-node-path`, { cwd: ctx.baseDir }, function(error, stdout, stderr) {
+ 			pluginExecute(`${ctx.__config && ctx.__config.__npm ? ctx.__config.__npm : "npm"} dedupe --scripts-prepend-node-path=true`, { cwd: ctx.baseDir }, function(error, stdout, stderr) {
  				if (error instanceof Error) {
  					console.error(stderr);
  				}
