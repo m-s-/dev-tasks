@@ -747,6 +747,106 @@ module.exports = function (gulpWrapper, ctx) {
         }
         callback();        
       });
+
+    gulp.task('help:generateFromTemplates', function (callback) {
+
+        const prefix = pluginYargs.tplPrefix || "_template";
+        const overviewHeader = pluginYargs.overviewHeader || "## Overview";
+
+        const description = content =>
+        (content.indexOf(overviewHeader) >= 0 ?
+            content.split(overviewHeader)[1].split("##")[0]
+        : "-").trim();
+
+        glob(path.join(ctx.baseDir, `./assets/**/*${prefix}`), function (err, matches) {
+            if (err != null) {
+                callback(err);
+                return;
+            }
+
+            const promises = matches.map(absoluteFilePath => {
+                const templateFile = path.basename(absoluteFilePath);
+                const baseFolder = path.dirname(absoluteFilePath);
+                const name = templateFile.replace(prefix, "");
+                if (name != null && name.length === 0) {
+                    return Promise.resolve(null);
+                }
+                const outputFile = `${name}.md`;
+                const filesPath = path.join(baseFolder, name);
+                return new Promise((resolve, reject) => {
+                    glob(path.join(filesPath, "*.md"), function (errMd, matchesMd) {
+                        if (errMd != null) {
+                            reject(errMd);
+                        }       
+
+                        console.debug(
+`template: ${templateFile}
+outputFile: ${outputFile}
+baseFolder: ${baseFolder}
+number of files: ${matchesMd.length}`);
+
+                        const outContent = [];
+
+                        const tplContent = fs.readFileSync(absoluteFilePath, "utf8");
+                        const tableMode = tplContent.indexOf("@TableData@") >= 0;
+                        const indexMode = tplContent.indexOf("@IndexData@") >= 0;
+                        const replaceToken = tableMode ? "@TableData@" : "@IndexData@";
+
+                        matchesMd.forEach(md => {
+                            const fileContent = fs.readFileSync(md, "utf8");
+
+                            const title = (fileContent.indexOf("\n") ? fileContent.split("\n")[0] : fileContent)
+                                .replace("#", "").trim();
+
+                            const folderPath = path.relative(path.join(ctx.baseDir, "assets"), filesPath)
+                                .split("\\")
+                                .join(">");
+
+                            // TODO: Tenant? Include in ctx? return from base dir as format is "cmf.docs.area.<tenant>"?
+                            const link = `/${pluginYargs.tenant}/${folderPath}>${path.basename(md).replace(".md", "")}`;
+
+                            outContent.push(indexMode ? 
+                                `* [${title}](${link})`:
+                                `| [${title}](${link}) | ${description(fileContent)} |`    
+                            );
+
+                            fs.writeFileSync(`${baseFolder}/${outputFile}`, tplContent.replace(replaceToken, outContent.join("\n")), {encoding: "utf8"});
+                        });
+                        resolve();
+                    });
+                });
+            });
+            return Promise.all(promises).then(() => callback()).catch(callback);
+        })
+    });
+
+    gulp.task('help:generateMenuItems', function (callback) {
+        glob(path.join(ctx.baseDir, "assets", "*", "**", "*.md"), function (err, matches) {
+            if (err != null) {
+                callback(err);
+                return;
+            }
+
+            const metadata = matches.map(match => {
+                const fileName = path.basename(match);
+                const title = fs.readFileSync(match, "utf8")
+                    .split("\n")[0]
+                    .replace(/#/gi, "")
+                    .trim();
+                return {
+                    "id": fileName.toLocaleLowerCase().replace(".md", ""),
+                    "menuGroupId": path.relative(path.join(ctx.baseDir, "assets"), path.dirname(match)).split(path.sep).pop().toLocaleLowerCase(),
+                    "title": title,
+                    "actionId": ""
+                }
+            });
+
+            const outFile = path.join(ctx.baseDir, "assets", "__generatedMenuItems.json");
+            fs.writeFileSync(outFile, JSON.stringify(metadata, null, 3), {encoding: "utf8"});
+            console.log(`File '${outFile}' updated`);
+            callback();
+        });
+    });
     
     /**
      * Internal Build task
